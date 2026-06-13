@@ -1,0 +1,60 @@
+% =====================================================================
+%  LaTeX preamble for a Farsi (RTL) technical book — PDF output via LuaLaTeX.
+%  Injected by Quarto as `include-in-header` for the PDF format.
+%
+%  Bidi strategy: babel + bidi=basic  (NOT xepersian / polyglossia / the
+%  `bidi` package). babel's built-in bidi engine uses the LaTeX kernel's
+%  bidi support, which is robust with modern array/longtable/booktabs.
+%  xepersian breaks on array/longtable; polyglossia demands extra font
+%  families; the standalone `bidi` package mis-orders multi-line content.
+%
+%  * Persian is the main language (RTL); `english` is available for LTR runs.
+%  * \babelsublr{...} forces a left-to-right "island" — see theme/ltr.lua.
+%  * Math ($...$) and verbatim/code stay LTR automatically.
+%  * The body font is set here via \babelfont (loaded by file from fonts/),
+%    so do NOT also set `mainfont` in _quarto.yml for PDF.
+% =====================================================================
+
+% --- TikZ / PGF, if you inline any diagrams in the prose (figures are usually
+%     external — see diagrams/). Safe to keep even if unused. ----------------
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{arrows.meta}
+
+% --- Math. mathtools pulls in amsmath and adds \coloneqq, \xmapsto, ... ------
+\usepackage{mathtools}
+
+% --- RTL / Persian via babel (bidi=basic) -----------------------------------
+\usepackage[bidi=basic]{babel}
+\babelprovide[import]{english}
+\babelprovide[main, import]{persian}
+% Body font (Vazirmatn) loaded BY FILE — no system font install needed.
+% Set BOTH roman and sans: KOMA/most classes render titles+headings in the
+% sans family, so the sans face must also cover Persian (else title = tofu).
+% Renderer=Node forces luaotfload's stable node shaper instead of HarfBuzz
+% (LuaHBTeX's default HarfBuzz has an assertion bug on some Persian glyph
+% sequences; the node renderer shapes connected Persian correctly).
+\babelfont{rm}[Renderer=Node, Path=fonts/, Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold]{Vazirmatn}
+\babelfont{sf}[Renderer=Node, Path=fonts/, Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold]{Vazirmatn}
+
+% --- Monospace (code) font WITH a Persian-glyph fallback, so Persian text
+%     inside code blocks still renders. Latin Modern Mono keeps code
+%     monospaced; any glyph it lacks falls back to Vazirmatn. ----------------
+\directlua{luaotfload.add_fallback("monofallback", {"[fonts/Vazirmatn-Regular.ttf]:mode=node;script=arab;"})}
+\babelfont{tt}[Renderer=Node, RawFeature={fallback=monofallback}]{Latin Modern Mono}
+
+% --- Wrap long code lines in the PDF. Quarto loads plain fancyvrb (no
+%     breaklines key), so we load fvextra and enable wrapping globally. ------
+\usepackage{fvextra}
+\fvset{breaklines=true, breakanywhere=true}
+
+% --- (Optional) RTL ToC number-column widths. Multi-part section numbers
+%     (e.g. "12.10") can collide with the heading text; reserve wider columns.
+%     Uncomment / tune if your numbering grows wide (needs a KOMA class).
+% \DeclareTOCStyleEntry[numwidth=2.8em]{tocline}{chapter}
+% \DeclareTOCStyleEntry[numwidth=3.6em]{tocline}{section}
+
+% --- (Optional) graphical front cover as page 1:
+% \usepackage{pdfpages}
+% \AtBeginDocument{\includepdf[fitpaper=true]{cover/cover.pdf}}

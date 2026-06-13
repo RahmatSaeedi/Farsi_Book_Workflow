@@ -1,0 +1,8 @@
+# Build tooling for the Farsi technical-book workflow.
+pymupdf>=1.24        # crops LuaLaTeX figure PDFs to content + emits SVG (tools/build_diagrams.py)
+numpy>=1.24          # pixel-based content bbox in the figure builder + QA
+PyYAML>=6.0          # optional: parse an outline/config to generate chapter stubs
+
+# Add computational / plotting deps your chapters use, e.g.:
+# scipy>=1.10
+# matplotlib>=3.7

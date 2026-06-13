@@ -1,0 +1,67 @@
+name: build-and-deploy
+
+# Renders the book (HTML + PDF) and deploys the website to GitHub Pages.
+# The validated toolchain: Quarto + TinyTeX (LuaLaTeX + babel bidi=basic).
+# Vazirmatn fonts are committed under fonts/ and loaded by file, so no system
+# font install is needed. Diagrams are built from TikZ to PDF + SVG by
+# tools/build_diagrams.py (LuaLaTeX + PyMuPDF), invoked via `make -C diagrams`.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          tinytex: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python deps (PyMuPDF crops figures to SVG/PDF)
+        run: pip install -r requirements.txt
+
+      - name: Install LaTeX packages for diagrams and PDF
+        run: |
+          tlmgr install geometry pgf pgfplots babel-persian \
+            xcolor fancyvrb framed koma-script unicode-math || true
+
+      - name: Build vector diagrams (LuaLaTeX -> PyMuPDF -> PDF + SVG)
+        run: make -C diagrams
+
+      - name: Render book (HTML + PDF)
+        run: quarto render
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _book
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,61 @@
+# Quarto build outputs
+/_site/
+/_book/
+/.quarto/
+*.html
+!_extensions/**/*.html
+# theme/*.html are source includes (e.g. mathjax-config.html), not rendered output:
+!theme/*.html
+
+# Smoke-test render artifacts (the source smoke-test.qmd is tracked)
+/smoke-test.pdf
+/smoke-test.tex
+/smoke-test_files/
+
+# Scratch/diagnostic files (incl. verifier-agent recompute scripts)
+/_*.txt
+/_*.pdf
+/_*.py
+/tools/_*.py
+/test_*.qmd
+/test_*.html
+/test_*_files/
+
+# LaTeX intermediates
+*.aux
+*.log
+*.toc
+*.out
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.bbl
+*.blg
+*.xdv
+
+# Diagram intermediates (keep sources, ignore compiled artifacts)
+diagrams/**/*.pdf
+diagrams/**/*.svg
+diagrams/**/*.aux
+diagrams/**/*.log
+# Per-figure build logs from tools/build_diagrams.ps1 (cleaned on success,
+# but ignore them so an interrupted build never leaves them tracked).
+*.buildlog
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Fonts are large; document how to fetch them instead of committing (optional)
+# fonts/*.ttf
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+**/*.quarto_ipynb

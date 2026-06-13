@@ -1,0 +1,47 @@
+% =====================================================================
+%  FIGURE TEMPLATE — copy to NN-your-name.tex and draw inside.
+%  Farsi (RTL) labels + LTR math/English; vector output (PDF + SVG).
+%
+%  Build (do NOT use bare `lualatex` / `standalone`):
+%     python tools/build_diagrams.py 'NN-your-name'   # -> .pdf + .svg
+%     make -C diagrams                                 # builds everything
+%
+%  Why it is shaped like this (see README "The figure pipeline"):
+%   * article + a huge `geometry` page; PyMuPDF later crops to the content
+%     bbox, so the page size never matters.
+%   * babel `bidi=basic` + `Renderer=Node`  -> Persian shapes & orders right
+%     (this is what the old XeLaTeX + `bidi` package got WRONG on multi-line
+%     nodes — first line of text-width boxes, and whole `align` boxes, came
+%     out left-to-right).
+%   * Wrap the WHOLE tikzpicture in \babelsublr{...}: an RTL page mirrors the
+%     figure GEOMETRY otherwise (a node at x=6 lands on the left). babelsublr
+%     forces an LTR box for geometry while node TEXT still gets RTL from bidi.
+%   * Persian node text "just works": no \setRTL, no \RL, no Script=Arabic.
+% =====================================================================
+\documentclass{article}
+\usepackage[paperwidth=120cm,paperheight=120cm,margin=10mm]{geometry}
+\pagestyle{empty}
+\usepackage{fontspec}
+\usepackage[bidi=basic]{babel}
+\babelprovide[import]{english}
+\babelprovide[main, import]{persian}
+\babelfont{rm}[Renderer=Node, Path=../fonts/, Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold]{Vazirmatn}
+\babelfont{sf}[Renderer=Node, Path=../fonts/, Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold]{Vazirmatn}
+\usepackage{amsmath}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, shapes.misc, calc, fit, backgrounds}
+\begin{document}
+\babelsublr{\begin{tikzpicture}[>=Stealth, font=\small]
+
+  % ----------------------------------------------------------------
+  %  YOUR DRAWING HERE.
+  %  Persian text in nodes is automatically right-to-left; English
+  %  and $math$ stay left-to-right. Multi-line nodes (\\ inside an
+  %  `align` / `text width` node) order correctly too.
+  % ----------------------------------------------------------------
+  \node {متنِ نمونه — replace me};
+
+\end{tikzpicture}}
+\end{document}

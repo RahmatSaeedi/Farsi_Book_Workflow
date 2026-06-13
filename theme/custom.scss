@@ -1,0 +1,63 @@
+/*-- scss:defaults --*/
+// Vazirmatn as the primary UI/body face for the (RTL) website.
+$font-family-sans-serif: "Vazirmatn", "Segoe UI", "Tahoma", sans-serif !default;
+$font-family-base: $font-family-sans-serif !default;
+$toc-font-size: 0.9rem !default;
+
+/*-- scss:rules --*/
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100..900&family=JetBrains+Mono&display=swap');
+
+// Persian body flows right-to-left.
+body {
+  direction: rtl;
+  text-align: right;
+  font-family: "Vazirmatn", "Segoe UI", sans-serif;
+  line-height: 1.85;
+}
+
+// Left-to-right "islands": code, math, English terms, ASCII art.
+pre, code, kbd, samp, .sourceCode,
+div.sourceCode, pre.text, pre code {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: isolate;
+  font-family: "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
+}
+
+.math, mjx-container, .katex, .katex-display {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+// Long display equations scroll horizontally instead of overflowing the page.
+mjx-container[display="true"] {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}
+
+// Wrap long code lines so they never overflow the column (RTL page + LTR code).
+div.sourceCode, pre.sourceCode, pre, pre code, code.sourceCode,
+pre > code.sourceCode {
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+div.sourceCode { overflow-x: auto; max-width: 100%; }
+
+[dir="ltr"], .ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+// Headings keep Vazirmatn and RTL alignment.
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Vazirmatn", sans-serif;
+  text-align: right;
+}
+
+// Figures/captions centered regardless of direction.
+figure, .figure, figcaption { text-align: center; }
+
+// Tables read right-to-left by default.
+table { direction: rtl; }

@@ -1,0 +1,54 @@
+# =====================================================================
+#  Quarto book config — Farsi (RTL) technical book template.
+#
+#  Validated toolchain:
+#    * PDF : LuaLaTeX + babel (bidi=basic); Vazirmatn via theme/preamble.tex
+#    * HTML: cosmo + theme/custom.scss; dir=rtl/lang=fa; LTR islands via ltr.lua
+#
+#  CRITICAL: do NOT set a global top-level `lang:`. It makes Pandoc load
+#  babel/polyglossia for the PDF and clash with our preamble. `lang`/`dir`
+#  are set ONLY on the html format below.
+# =====================================================================
+project:
+  type: book
+  output-dir: _book
+
+book:
+  title: "عنوانِ کتابِ شما"
+  subtitle: "زیرعنوان — یک کتابِ علمی-فنیِ فارسی"
+  author: "نامِ نویسنده"
+  # cover-image: cover/cover.png        # HTML/EPUB cover (optional)
+  search: true
+  chapters:
+    - index.qmd
+    - chapters/01-sample-chapter.qmd
+  # appendices:
+  #   - appendices/A-glossary.qmd
+
+bibliography: references.bib
+
+filters:
+  - theme/ltr.lua
+
+format:
+  html:
+    lang: fa
+    dir: rtl
+    theme:
+      - cosmo
+      - theme/custom.scss
+    include-in-header: theme/mathjax-config.html
+    toc: true
+    toc-title: "فهرست"
+    number-sections: true
+    code-copy: true
+    code-overflow: wrap
+  pdf:
+    pdf-engine: lualatex
+    documentclass: scrreport          # KOMA report; or `scrbook`, `report`, `book`
+    include-in-header: theme/preamble.tex
+    toc: true
+    toc-depth: 2                       # Quarto maps toc-depth:N -> LaTeX tocdepth N-1
+    number-sections: true
+    colorlinks: true
+    code-overflow: wrap

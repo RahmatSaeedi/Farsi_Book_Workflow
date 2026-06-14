@@ -31,23 +31,24 @@ jobs:
         with:
           tinytex: true
 
-      # quarto-actions/setup installs TinyTeX to ~/.TinyTeX, but its Linux
-      # branch only puts ~/bin on PATH — and tlmgr may symlink the binaries into
-      # ~/.local/bin or /usr/local/bin instead, leaving ~/bin empty. So `quarto
-      # render` works (Quarto finds ~/.TinyTeX itself) while a plain `run:` step
-      # calling lualatex/tlmgr fails with "command not found". Point PATH at the
-      # real TinyTeX bin dir for the rest of the job (run: steps use a no-rc
-      # shell, so this must go through $GITHUB_PATH).
-      - name: Put TinyTeX (lualatex/tlmgr) on PATH
+      # quarto-actions installs TinyTeX to ~/.TinyTeX, but its Linux branch only
+      # puts ~/bin on $GITHUB_PATH — the real binaries live in ~/.TinyTeX/bin/<arch>/.
+      # `quarto render` locates them by absolute path, but bare tlmgr/lualatex/kpsewhich
+      # in later run: steps (and the lualatex subprocess in build_diagrams.py) are NOT
+      # on PATH and fail with "command not found". Put the real bin dir on $GITHUB_PATH
+      # (GHA run: steps use bash --noprofile --norc, so PATH must go through that file).
+      # Must run AFTER Quarto setup and BEFORE the LaTeX-install and figure-build steps.
+      - name: Put TinyTeX's bin dir on PATH for later steps
+        shell: bash
         run: |
-          find_bin() { dirname "$(find "$1" -path '*/bin/*/lualatex' 2>/dev/null | head -n1)"; }
-          BIN=$(find_bin "$HOME/.TinyTeX")
-          [ -x "$BIN/lualatex" ] || BIN=$(find_bin "$HOME")
-          if [ ! -x "$BIN/lualatex" ]; then
-            echo "::error::lualatex not found after quarto install tinytex"; exit 1
-          fi
-          echo "TinyTeX bin: $BIN"
-          echo "$BIN" >> "$GITHUB_PATH"
+          set -euo pipefail
+          TLMGR="$(find "$HOME/.TinyTeX/bin" -maxdepth 2 -name tlmgr 2>/dev/null | head -n1 || true)"
+          [ -n "$TLMGR" ] || TLMGR="$(find "$HOME/.TinyTeX" -name tlmgr 2>/dev/null | head -n1 || true)"
+          if [ -z "$TLMGR" ]; then echo "::error:: tlmgr not found under ~/.TinyTeX"; exit 1; fi
+          BIN_DIR="$(dirname "$TLMGR")"
+          echo "TinyTeX bin dir: $BIN_DIR"
+          "$BIN_DIR/tlmgr" --version >/dev/null
+          echo "$BIN_DIR" >> "$GITHUB_PATH"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -57,34 +58,97 @@ jobs:
       - name: Install Python deps (PyMuPDF crops figures to SVG/PDF)
         run: pip install -r requirements.txt
 
-      - name: Install LaTeX packages for diagrams and PDF
+      # Figures compile with DIRECT lualatex (not through Quarto), so Quarto's
+      # automatic missing-package install does NOT apply — every package the
+      # figures load (fontspec/babel/... on EVERY figure) must be pre-installed.
+      # Most are already in TinyTeX base; this adds the rest. tlmgr gotchas:
+      #  - amsfonts provides amssymb, pgf provides tikz.
+      #  - NO `babel-persian` package — Persian is the `persian` locale inside babel
+      #    core (babel/locale/fa/babel-persian.tex).
+      #  - luatexbase + ctablestack are babel's LuaTeX backend (babel -> luababel ->
+      #    luatexbase -> ctablestack); the MINIMAL TinyTeX on CI omits them even
+      #    though it ships babel.sty, so every figure fails with luatexbase.sty
+      #    "not found" unless they are installed explicitly.
+      # The 2nd line group is for the BOOK PDF (quarto render), which loads more than
+      # the figures: tcolorbox (+ deps environ/tikzfill/pdfcol/trimspaces) for Quarto
+      # callouts, caption/booktabs/float for tables & figures, microtype/bookmark/
+      # upquote/lineno/lm-math/lualatex-math, etc. Pre-installing them means `quarto
+      # render` needs ZERO auto-installs — Quarto installs one package per LaTeX pass
+      # and gives up before a minimal TinyTeX catches up (that was the render failure).
+      # The full set was derived from a local render's index.log. No `|| true`, so a
+      # genuine failure surfaces instead of being masked. tlmgr also pulls any deps.
+      - name: Install LaTeX packages
         run: |
-          # `babel` ships all locale data, incl. Persian (locale/fa/babel-fa.ini,
-          # loaded by \babelprovide{persian}) -- there is NO `babel-persian` TeX
-          # Live package. babel's LuaTeX backend \RequirePackages luatexbase +
-          # ctablestack, and the graphics driver pulls epstopdf-pkg; tlmgr does
-          # not always drag these in as deps, so list them explicitly. Packages
-          # already in TinyTeX's base just report "already present".
-          tlmgr install babel luatexbase ctablestack \
-            geometry pgf pgfplots xcolor fancyvrb framed koma-script \
-            unicode-math epstopdf-pkg
+          tlmgr install \
+            fontspec babel luatexbase ctablestack luaotfload unicode-math geometry pgf pgfplots \
+            xcolor amsmath amsfonts mathtools fancyvrb fvextra framed pdfpages koma-script lm lm-math \
+            bookmark booktabs caption environ eso-pic float fontawesome5 intcalc lineno lualatex-math \
+            mdwtools microtype pdfcol pdflscape tcolorbox tikzfill trimspaces upquote
 
+      # The book loads several fonts BY NAME (Latin Modern Mono/Math, FontAwesome5)
+      # plus a luaotfload fallback for Persian-in-code. On a fresh CI TinyTeX the
+      # luaotfload name database is built lazily and can be incomplete right after a
+      # tlmgr font install — a by-name font then embeds with an EMPTY filename and
+      # crashes PDF finalization ("! error: (file ) (type 2): cannot find file ''").
+      # Build the database explicitly now, with every font already installed, so
+      # name resolution is complete and consistent before any render.
+      - name: Build the LuaTeX font database
+        run: |
+          # Vazirmatn lives in the repo's fonts/ (NOT a TEXMF tree), so luaotfload
+          # does not index it by name. The book's tt font has a Persian fallback
+          # (luaotfload.add_fallback) that needs that name resolution to EMBED; without
+          # it the fallback embeds an empty filename and crashes PDF finalization
+          # ("! error: (file ) (type 2): cannot find file ''"). Point OSFONTDIR at the
+          # repo fonts so --update indexes Vazirmatn by name, and export it so the
+          # render step resolves it too. (Figures embed Vazirmatn by PATH and are
+          # unaffected — only the by-name fallback embed needs this.)
+          export OSFONTDIR="$PWD/fonts"
+          echo "OSFONTDIR=$PWD/fonts" >> "$GITHUB_ENV"
+          luaotfload-tool --update --force
+          # Diagnostic: resolve the book's by-name fonts NOW (fast, before the figure
+          # build). Vazirmatn must now resolve; if any is "not found", that is the font
+          # that would embed an empty filename and crash PDF finalization.
+          echo "=== by-name font resolution ==="
+          for f in "Latin Modern Mono" "Latin Modern Math" "FontAwesome5Free Solid" "Vazirmatn"; do
+            printf '  %-26s -> ' "$f"; luaotfload-tool --find="$f" || echo "(resolve FAILED)"
+          done
+
+      # Compile ONE real figure as a canary. A hardcoded kpsewhich list gives false
+      # confidence (it once passed while luatexbase.sty was missing); a real compile
+      # with the figures' exact preamble + fonts surfaces ANY missing dependency here
+      # in ~5s, instead of after grinding through all 228 figures.
+      - name: Verify the figure toolchain (compile one real figure)
+        run: |
+          lualatex --version | head -1
+          python -c "import fitz, numpy; print('PyMuPDF + numpy OK')"
+          cd diagrams
+          canary=01-calculus-vector-calculus-fig1
+          if ! lualatex -interaction=nonstopmode -halt-on-error "$canary.tex" >_canary.log 2>&1; then
+            echo "--- canary figure '$canary' failed to compile ---"
+            tail -n 30 _canary.log
+            exit 1
+          fi
+          test -f "$canary.pdf" && echo "canary OK: $canary.pdf produced"
+
+      # Pass the pip-populated interpreter explicitly: `make` would otherwise use
+      # whatever `python3` resolves to, which may lack PyMuPDF/numpy.
       - name: Build vector diagrams (LuaLaTeX -> PyMuPDF -> PDF + SVG)
-        run: make -C diagrams
+        run: make -C diagrams PYTHON="$(which python)"
 
       - name: Render book (HTML + PDF)
-        # On failure Quarto leaves the LaTeX log but doesn't print it, so a PDF
-        # error shows only "compilation failed". Dump index.log so CI says why.
         run: |
-          quarto render || {
-            echo "::group::index.log -- LaTeX error lines"
-            grep -nE '^(\! |l\.[0-9])' index.log 2>/dev/null | tail -n 80 || true
-            echo "::endgroup::"
-            echo "::group::index.log -- last 120 lines"
-            tail -n 120 index.log 2>/dev/null || echo "(index.log not present)"
+          if ! quarto render; then
+            echo "::group::index.log (LaTeX error context)"
+            if [ -f index.log ]; then
+              grep -n -B2 -A4 -E '^(! |.*LaTeX Error|.*Fatal error|.*Emergency stop|.*not found)' index.log | tail -150 || true
+              echo "----- last 50 lines of index.log -----"
+              tail -n 50 index.log
+            else
+              echo "no index.log in $(pwd); .log files present:"; ls -la ./*.log 2>/dev/null || true
+            fi
             echo "::endgroup::"
             exit 1
-          }
+          fi
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

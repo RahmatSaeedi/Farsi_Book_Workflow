@@ -17,7 +17,7 @@ Usage:
     python tools/build_diagrams.py [GLOB]      # default GLOB='*'
     python tools/build_diagrams.py '33-*'
 """
-import os, sys, glob, fnmatch, re, shutil, subprocess
+import os, sys, glob, fnmatch, subprocess
 
 try:
     import fitz  # PyMuPDF
@@ -29,98 +29,23 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIAG = os.path.join(ROOT, "diagrams")
 BORDER = 4.0  # pt margin around the cropped content
 
-# TinyTeX (the LaTeX that Quarto installs) lives per-user and is frequently NOT
-# on PATH for non-interactive invocations: under %APPDATA% on Windows, and under
-# ~/.TinyTeX on Linux/macOS. (On GitHub Actions the CI workflow exports it
-# explicitly, because `run:` steps use a no-rc shell.) If `lualatex` isn't
-# already resolvable, prepend the first standard TinyTeX bin dir we can find so
-# the subprocess call below behaves the same everywhere.
-if shutil.which("lualatex") is None:
-    _home = os.path.expanduser("~")
-    _appdata = os.environ.get("APPDATA", "")
-    for _bin in (os.path.join(_appdata, "TinyTeX", "bin", "windows"),
-                 os.path.join(_home, ".TinyTeX", "bin", "x86_64-linux"),
-                 os.path.join(_home, ".TinyTeX", "bin", "aarch64-linux"),
-                 os.path.join(_home, ".TinyTeX", "bin", "universal-darwin"),
-                 os.path.join(_home, "Library", "TinyTeX", "bin", "universal-darwin")):
-        if shutil.which("lualatex", path=_bin):
-            os.environ["PATH"] = _bin + os.pathsep + os.environ.get("PATH", "")
-            break
-
-
-def _run_lualatex(base):
-    """Run lualatex on base.tex, capturing all output (normally hidden)."""
-    return subprocess.run(
-        ["lualatex", "-interaction=nonstopmode", "-halt-on-error", base + ".tex"],
-        cwd=DIAG, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True, encoding="utf-8", errors="replace")
-
-
-def _tlmgr(*args):
-    """Run `tlmgr <args>` and return its CompletedProcess, or None if tlmgr
-    can't be launched -- not installed, or a non-exec .bat shim on Windows
-    (where a full local TeX install never needs auto-install anyway, so this
-    degrades to the plain error report below instead of crashing)."""
-    exe = shutil.which("tlmgr")
-    if not exe:
-        return None
-    try:
-        return subprocess.run([exe, *args], capture_output=True,
-                              text=True, encoding="utf-8", errors="replace")
-    except OSError:
-        return None
-
-
-def _autoinstall_missing(output):
-    """A fresh TinyTeX (CI) is minimal, so a figure can need a package the box
-    doesn't have yet. When lualatex fails on a "file not found", tlmgr-install
-    the package(s) that own those files so the next compile can proceed. Returns
-    how many packages were installed (0 -> nothing more to try). This frees the
-    build from a hand-maintained, perpetually-incomplete TeX package list."""
-    missing = set(re.findall(r"File `([^']+?)' not found", output))
-    missing |= set(re.findall(r"can't find (?:file|format) [`']?([^\s'`]+)", output))
-    pkgs = set()
-    for fname in missing:
-        fname = os.path.basename(fname.strip())
-        if not fname:
-            continue
-        # `tlmgr search --global --file /NAME` prints "<package>:" (unindented)
-        # followed by the indented owning path(s); the bare "<pkg>:" is the name.
-        res = _tlmgr("search", "--global", "--file", "/" + fname)
-        if res is None:
-            return 0  # tlmgr unavailable -> can't help; fall through to report
-        for line in (res.stdout or "").splitlines():
-            s = line.strip()
-            if s.endswith(":") and " " not in s and "/" not in s:
-                pkgs.add(s[:-1])
-    pkgs.discard("")
-    if not pkgs:
-        return 0
-    print(f"  missing TeX file(s) -> tlmgr install {' '.join(sorted(pkgs))}")
-    _tlmgr("install", *sorted(pkgs))
-    return len(pkgs)
+# On Windows, TinyTeX lives per-user and may not be on PATH; add it. On Linux
+# (CI) lualatex is already on PATH and this dir simply does not exist.
+_tex = os.path.join(os.environ.get("APPDATA", ""), "TinyTeX", "bin", "windows")
+if os.path.isdir(_tex):
+    os.environ["PATH"] = _tex + os.pathsep + os.environ.get("PATH", "")
 
 
 def build_one(base):
-    """Compile base.tex (auto-installing any missing TeX packages on a minimal
-    TinyTeX), then crop to content and write a tight base.pdf + base.svg."""
+    """Compile base.tex, crop to content, write tight base.pdf + base.svg."""
+    r = subprocess.run(["lualatex", "-interaction=nonstopmode", "-halt-on-error", base + ".tex"],
+                       cwd=DIAG, capture_output=True, text=True, errors="replace")
     pdf = os.path.join(DIAG, base + ".pdf")
-    proc = _run_lualatex(base)
-    for _ in range(5):  # retry only while each round installs a new package
-        if os.path.exists(pdf) or not _autoinstall_missing(proc.stdout or ""):
-            break
-        proc = _run_lualatex(base)
     if not os.path.exists(pdf):
-        # Still no PDF -> show *why*. lualatex's output is captured (normally
-        # hidden); print the error lines + a tail so CI logs are actionable
-        # instead of a bare "PDF-FAIL". (-halt-on-error puts it near the end.)
-        out = (proc.stdout or "").splitlines()
-        flagged = [ln for ln in out
-                   if ln[:1] == "!" or ln[:2] == "l." or "not found" in ln or "Error" in ln]
-        sys.stderr.write(f"\n===== {base}.tex FAILED (lualatex exit {proc.returncode}) =====\n")
-        if flagged:
-            sys.stderr.write("\n".join(flagged[-25:]) + "\n--- output tail ---\n")
-        sys.stderr.write("\n".join(out[-25:]) + f"\n===== end {base} =====\n")
+        # Surface the real LaTeX error (e.g. a missing package on a CI runner)
+        # instead of swallowing it — the last lines of lualatex's output say why.
+        tail = "\n".join((r.stdout or "").splitlines()[-25:])
+        print(f"--- lualatex FAILED for {base}.tex (exit {r.returncode}) ---\n{tail}\n--- end ---")
         return "PDF-FAIL"
     doc = fitz.open(pdf)
     page = doc[0]

@@ -73,7 +73,18 @@ jobs:
         run: make -C diagrams
 
       - name: Render book (HTML + PDF)
-        run: quarto render
+        # On failure Quarto leaves the LaTeX log but doesn't print it, so a PDF
+        # error shows only "compilation failed". Dump index.log so CI says why.
+        run: |
+          quarto render || {
+            echo "::group::index.log -- LaTeX error lines"
+            grep -nE '^(\! |l\.[0-9])' index.log 2>/dev/null | tail -n 80 || true
+            echo "::endgroup::"
+            echo "::group::index.log -- last 120 lines"
+            tail -n 120 index.log 2>/dev/null || echo "(index.log not present)"
+            echo "::endgroup::"
+            exit 1
+          }
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

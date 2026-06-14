@@ -122,7 +122,7 @@ jobs:
           lualatex --version | head -1
           python -c "import fitz, numpy; print('PyMuPDF + numpy OK')"
           cd diagrams
-          canary=01-calculus-vector-calculus-fig1
+          canary=sample-figure
           if ! lualatex -interaction=nonstopmode -halt-on-error "$canary.tex" >_canary.log 2>&1; then
             echo "--- canary figure '$canary' failed to compile ---"
             tail -n 30 _canary.log

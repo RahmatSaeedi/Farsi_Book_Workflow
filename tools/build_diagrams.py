@@ -50,10 +50,23 @@ if shutil.which("lualatex") is None:
 
 def build_one(base):
     """Compile base.tex, crop to content, write tight base.pdf + base.svg."""
-    subprocess.run(["lualatex", "-interaction=nonstopmode", "-halt-on-error", base + ".tex"],
-                   cwd=DIAG, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    proc = subprocess.run(
+        ["lualatex", "-interaction=nonstopmode", "-halt-on-error", base + ".tex"],
+        cwd=DIAG, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, encoding="utf-8", errors="replace")
     pdf = os.path.join(DIAG, base + ".pdf")
     if not os.path.exists(pdf):
+        # No PDF -> lualatex errored. Its output is captured (normally hidden);
+        # surface the LaTeX error lines + a tail so CI logs say *why* instead of
+        # a bare "PDF-FAIL" -- e.g. a missing .sty to add to the workflow's
+        # tlmgr step. (-halt-on-error puts the first error near the end.)
+        out = (proc.stdout or "").splitlines()
+        flagged = [ln for ln in out
+                   if ln[:1] == "!" or ln[:2] == "l." or "not found" in ln or "Error" in ln]
+        sys.stderr.write(f"\n===== {base}.tex FAILED (lualatex exit {proc.returncode}) =====\n")
+        if flagged:
+            sys.stderr.write("\n".join(flagged[-25:]) + "\n--- output tail ---\n")
+        sys.stderr.write("\n".join(out[-25:]) + f"\n===== end {base} =====\n")
         return "PDF-FAIL"
     doc = fitz.open(pdf)
     page = doc[0]

@@ -61,10 +61,13 @@ jobs:
         run: |
           # `babel` ships all locale data, incl. Persian (locale/fa/babel-fa.ini,
           # loaded by \babelprovide{persian}) -- there is NO `babel-persian` TeX
-          # Live package. Most of the rest are already in TinyTeX's base; tlmgr
-          # reports "already present" and moves on.
-          tlmgr install babel geometry pgf pgfplots \
-            xcolor fancyvrb framed koma-script unicode-math
+          # Live package. babel's LuaTeX backend \RequirePackages luatexbase +
+          # ctablestack, and the graphics driver pulls epstopdf-pkg; tlmgr does
+          # not always drag these in as deps, so list them explicitly. Packages
+          # already in TinyTeX's base just report "already present".
+          tlmgr install babel luatexbase ctablestack \
+            geometry pgf pgfplots xcolor fancyvrb framed koma-script \
+            unicode-math epstopdf-pkg
 
       - name: Build vector diagrams (LuaLaTeX -> PyMuPDF -> PDF + SVG)
         run: make -C diagrams

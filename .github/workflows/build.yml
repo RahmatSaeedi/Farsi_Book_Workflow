@@ -59,7 +59,11 @@ jobs:
 
       - name: Install LaTeX packages for diagrams and PDF
         run: |
-          tlmgr install geometry pgf pgfplots babel-persian \
+          # `babel` ships all locale data, incl. Persian (locale/fa/babel-fa.ini,
+          # loaded by \babelprovide{persian}) -- there is NO `babel-persian` TeX
+          # Live package. Most of the rest are already in TinyTeX's base; tlmgr
+          # reports "already present" and moves on.
+          tlmgr install babel geometry pgf pgfplots \
             xcolor fancyvrb framed koma-script unicode-math
 
       - name: Build vector diagrams (LuaLaTeX -> PyMuPDF -> PDF + SVG)

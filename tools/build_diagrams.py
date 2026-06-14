@@ -17,7 +17,7 @@ Usage:
     python tools/build_diagrams.py [GLOB]      # default GLOB='*'
     python tools/build_diagrams.py '33-*'
 """
-import os, sys, glob, fnmatch, shutil, subprocess
+import os, sys, glob, fnmatch, re, shutil, subprocess
 
 try:
     import fitz  # PyMuPDF
@@ -48,18 +48,72 @@ if shutil.which("lualatex") is None:
             break
 
 
-def build_one(base):
-    """Compile base.tex, crop to content, write tight base.pdf + base.svg."""
-    proc = subprocess.run(
+def _run_lualatex(base):
+    """Run lualatex on base.tex, capturing all output (normally hidden)."""
+    return subprocess.run(
         ["lualatex", "-interaction=nonstopmode", "-halt-on-error", base + ".tex"],
         cwd=DIAG, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, encoding="utf-8", errors="replace")
+
+
+def _tlmgr(*args):
+    """Run `tlmgr <args>` and return its CompletedProcess, or None if tlmgr
+    can't be launched -- not installed, or a non-exec .bat shim on Windows
+    (where a full local TeX install never needs auto-install anyway, so this
+    degrades to the plain error report below instead of crashing)."""
+    exe = shutil.which("tlmgr")
+    if not exe:
+        return None
+    try:
+        return subprocess.run([exe, *args], capture_output=True,
+                              text=True, encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+
+def _autoinstall_missing(output):
+    """A fresh TinyTeX (CI) is minimal, so a figure can need a package the box
+    doesn't have yet. When lualatex fails on a "file not found", tlmgr-install
+    the package(s) that own those files so the next compile can proceed. Returns
+    how many packages were installed (0 -> nothing more to try). This frees the
+    build from a hand-maintained, perpetually-incomplete TeX package list."""
+    missing = set(re.findall(r"File `([^']+?)' not found", output))
+    missing |= set(re.findall(r"can't find (?:file|format) [`']?([^\s'`]+)", output))
+    pkgs = set()
+    for fname in missing:
+        fname = os.path.basename(fname.strip())
+        if not fname:
+            continue
+        # `tlmgr search --global --file /NAME` prints "<package>:" (unindented)
+        # followed by the indented owning path(s); the bare "<pkg>:" is the name.
+        res = _tlmgr("search", "--global", "--file", "/" + fname)
+        if res is None:
+            return 0  # tlmgr unavailable -> can't help; fall through to report
+        for line in (res.stdout or "").splitlines():
+            s = line.strip()
+            if s.endswith(":") and " " not in s and "/" not in s:
+                pkgs.add(s[:-1])
+    pkgs.discard("")
+    if not pkgs:
+        return 0
+    print(f"  missing TeX file(s) -> tlmgr install {' '.join(sorted(pkgs))}")
+    _tlmgr("install", *sorted(pkgs))
+    return len(pkgs)
+
+
+def build_one(base):
+    """Compile base.tex (auto-installing any missing TeX packages on a minimal
+    TinyTeX), then crop to content and write a tight base.pdf + base.svg."""
     pdf = os.path.join(DIAG, base + ".pdf")
+    proc = _run_lualatex(base)
+    for _ in range(5):  # retry only while each round installs a new package
+        if os.path.exists(pdf) or not _autoinstall_missing(proc.stdout or ""):
+            break
+        proc = _run_lualatex(base)
     if not os.path.exists(pdf):
-        # No PDF -> lualatex errored. Its output is captured (normally hidden);
-        # surface the LaTeX error lines + a tail so CI logs say *why* instead of
-        # a bare "PDF-FAIL" -- e.g. a missing .sty to add to the workflow's
-        # tlmgr step. (-halt-on-error puts the first error near the end.)
+        # Still no PDF -> show *why*. lualatex's output is captured (normally
+        # hidden); print the error lines + a tail so CI logs are actionable
+        # instead of a bare "PDF-FAIL". (-halt-on-error puts it near the end.)
         out = (proc.stdout or "").splitlines()
         flagged = [ln for ln in out
                    if ln[:1] == "!" or ln[:2] == "l." or "not found" in ln or "Error" in ln]

@@ -31,6 +31,24 @@ jobs:
         with:
           tinytex: true
 
+      # quarto-actions/setup installs TinyTeX to ~/.TinyTeX, but its Linux
+      # branch only puts ~/bin on PATH — and tlmgr may symlink the binaries into
+      # ~/.local/bin or /usr/local/bin instead, leaving ~/bin empty. So `quarto
+      # render` works (Quarto finds ~/.TinyTeX itself) while a plain `run:` step
+      # calling lualatex/tlmgr fails with "command not found". Point PATH at the
+      # real TinyTeX bin dir for the rest of the job (run: steps use a no-rc
+      # shell, so this must go through $GITHUB_PATH).
+      - name: Put TinyTeX (lualatex/tlmgr) on PATH
+        run: |
+          find_bin() { dirname "$(find "$1" -path '*/bin/*/lualatex' 2>/dev/null | head -n1)"; }
+          BIN=$(find_bin "$HOME/.TinyTeX")
+          [ -x "$BIN/lualatex" ] || BIN=$(find_bin "$HOME")
+          if [ ! -x "$BIN/lualatex" ]; then
+            echo "::error::lualatex not found after quarto install tinytex"; exit 1
+          fi
+          echo "TinyTeX bin: $BIN"
+          echo "$BIN" >> "$GITHUB_PATH"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -42,7 +60,7 @@ jobs:
       - name: Install LaTeX packages for diagrams and PDF
         run: |
           tlmgr install geometry pgf pgfplots babel-persian \
-            xcolor fancyvrb framed koma-script unicode-math || true
+            xcolor fancyvrb framed koma-script unicode-math
 
       - name: Build vector diagrams (LuaLaTeX -> PyMuPDF -> PDF + SVG)
         run: make -C diagrams

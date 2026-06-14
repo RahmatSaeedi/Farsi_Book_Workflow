@@ -17,7 +17,7 @@ Usage:
     python tools/build_diagrams.py [GLOB]      # default GLOB='*'
     python tools/build_diagrams.py '33-*'
 """
-import os, sys, glob, fnmatch, subprocess
+import os, sys, glob, fnmatch, shutil, subprocess
 
 try:
     import fitz  # PyMuPDF
@@ -29,11 +29,23 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIAG = os.path.join(ROOT, "diagrams")
 BORDER = 4.0  # pt margin around the cropped content
 
-# On Windows, TinyTeX lives per-user and may not be on PATH; add it. On Linux
-# (CI) lualatex is already on PATH and this dir simply does not exist.
-_tex = os.path.join(os.environ.get("APPDATA", ""), "TinyTeX", "bin", "windows")
-if os.path.isdir(_tex):
-    os.environ["PATH"] = _tex + os.pathsep + os.environ.get("PATH", "")
+# TinyTeX (the LaTeX that Quarto installs) lives per-user and is frequently NOT
+# on PATH for non-interactive invocations: under %APPDATA% on Windows, and under
+# ~/.TinyTeX on Linux/macOS. (On GitHub Actions the CI workflow exports it
+# explicitly, because `run:` steps use a no-rc shell.) If `lualatex` isn't
+# already resolvable, prepend the first standard TinyTeX bin dir we can find so
+# the subprocess call below behaves the same everywhere.
+if shutil.which("lualatex") is None:
+    _home = os.path.expanduser("~")
+    _appdata = os.environ.get("APPDATA", "")
+    for _bin in (os.path.join(_appdata, "TinyTeX", "bin", "windows"),
+                 os.path.join(_home, ".TinyTeX", "bin", "x86_64-linux"),
+                 os.path.join(_home, ".TinyTeX", "bin", "aarch64-linux"),
+                 os.path.join(_home, ".TinyTeX", "bin", "universal-darwin"),
+                 os.path.join(_home, "Library", "TinyTeX", "bin", "universal-darwin")):
+        if shutil.which("lualatex", path=_bin):
+            os.environ["PATH"] = _bin + os.pathsep + os.environ.get("PATH", "")
+            break
 
 
 def build_one(base):

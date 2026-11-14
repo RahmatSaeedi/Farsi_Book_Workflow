@@ -21,7 +21,9 @@ div.sourceCode, pre.text, pre code {
   direction: ltr;
   text-align: left;
   unicode-bidi: isolate;
-  font-family: "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
+  // Vazirmatn before the generic fallback: Persian inside code (comments,
+  // strings) would otherwise fall to Courier New, whose Arabic looks broken.
+  font-family: "JetBrains Mono", "Cascadia Code", "Consolas", "Vazirmatn", monospace;
 }
 
 .math, mjx-container, .katex, .katex-display {

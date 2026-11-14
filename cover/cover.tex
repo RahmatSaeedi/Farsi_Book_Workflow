@@ -1,0 +1,81 @@
+% =====================================================================
+%  FRONT COVER — edit the three text lines below, then build:
+%     python tools/build_cover.py        # -> cover/cover.pdf + cover/cover.png
+%
+%  Same engine and rules as the figures (diagrams/figure-template.tex):
+%  LuaLaTeX + babel bidi=basic, Vazirmatn by path, the whole picture inside
+%  \babelsublr so the RTL page does not mirror the geometry. The builder crops
+%  the page to the painted background, so the paper size below never matters.
+%
+%  Canvas: 16 x 23 cm (ratio 1:1.44). cover.png is rendered 2560 px high, which
+%  is what Kindle asks for and stays under Apple's 5.6-megapixel image limit.
+%  To use your own artwork instead, replace cover/cover.pdf (one page) and
+%  cover/cover.png (2560 px high) and delete this file.
+% =====================================================================
+\documentclass{article}
+\usepackage[paperwidth=60cm,paperheight=60cm,margin=10mm]{geometry}
+\pagestyle{empty}
+\usepackage{fontspec}
+\usepackage[bidi=basic]{babel}
+\babelprovide[import]{english}
+\babelprovide[main, import]{persian}
+\babelfont{rm}[Renderer=Node, Path=../fonts/, Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold]{Vazirmatn}
+\babelfont{sf}[Renderer=Node, Path=../fonts/, Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold]{Vazirmatn}
+\usepackage{amsmath}
+\usepackage{tikz}
+
+% ---- EDIT THESE ------------------------------------------------------
+\newcommand{\CoverTitle}{عنوانِ کتاب}
+\newcommand{\CoverSubtitle}{زیرعنوانِ کتاب: یک کتابِ علمی-فنیِ فارسی}
+\newcommand{\CoverAuthor}{نامِ نویسنده}
+% ----------------------------------------------------------------------
+
+\definecolor{ink}{HTML}{0B1F3A}
+\definecolor{deep}{HTML}{12455A}
+\definecolor{accent}{HTML}{36D1DC}
+\definecolor{soft}{HTML}{9BE4EE}
+\definecolor{paper}{HTML}{EEF7FA}
+\definecolor{gold}{HTML}{F4C56B}
+
+\begin{document}
+\babelsublr{\begin{tikzpicture}
+  \def\W{16} \def\H{23}
+  % background (this rectangle is what the builder crops to)
+  \shade[top color=ink, bottom color=deep] (0,0) rectangle (\W,\H);
+
+  % faint grid in the central band only, so the text sits on a clean ground
+  \begin{scope}
+    \clip (0,5.2) rectangle (\W,17.6);
+    \foreach \x in {0,1,...,16}{\draw[soft, opacity=0.10, very thin] (\x,0)--(\x,\H);}
+    \foreach \y in {0,1,...,23}{\draw[soft, opacity=0.10, very thin] (0,\y)--(\W,\y);}
+  \end{scope}
+
+  % emblem: a damped oscillation inside concentric rings (replace freely)
+  \begin{scope}[shift={(8,11.4)}]
+    \foreach \r/\o in {4.6/30, 4.1/50, 3.6/75}{
+      \draw[accent, line width=1.1pt, opacity=\o/100] (0,0) circle (\r);
+    }
+    \foreach \a in {0,15,...,345}{\draw[soft!55, line width=0.6pt] (\a:4.7)--(\a:5.0);}
+    \draw[soft!60, line width=0.8pt] (-3.2,0)--(3.2,0);
+    \draw[gold!80, line width=0.9pt, dashed]
+      plot[domain=-3:3, samples=60, smooth] ({\x},{ 2.2*exp(-0.38*(\x+3))});
+    \draw[gold!80, line width=0.9pt, dashed]
+      plot[domain=-3:3, samples=60, smooth] ({\x},{-2.2*exp(-0.38*(\x+3))});
+    \draw[paper, line width=1.6pt]
+      plot[domain=-3:3, samples=240, smooth] ({\x},{2.2*exp(-0.38*(\x+3))*cos(420*(\x+3))});
+    \node[gold, font=\large] at (2.1,1.55) {$e^{-\zeta\omega_0 t}$};
+  \end{scope}
+
+  % title block
+  \node[anchor=north, align=center, text width=14cm, text=paper,
+        font=\fontsize{34}{44}\selectfont\bfseries] at (8,21.6) {\CoverTitle};
+  \draw[accent, line width=1.2pt] (3.5,18.75)--(12.5,18.75);
+  \node[anchor=north, align=center, text width=14cm, text=soft,
+        font=\fontsize{15}{22}\selectfont] at (8,18.4) {\CoverSubtitle};
+
+  % author
+  \draw[soft!55, line width=0.8pt] (4.5,3.1)--(11.5,3.1);
+  \node[anchor=north, align=center, text=paper,
+        font=\fontsize{17}{22}\selectfont\bfseries] at (8,2.8) {\CoverAuthor};
+\end{tikzpicture}}
+\end{document}

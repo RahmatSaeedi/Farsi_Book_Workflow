@@ -10,7 +10,8 @@ is how a clipped/mis-cropped figure (e.g. a coordinate-frame bug) reveals itself
 
 Exit code is non-zero if anything looks wrong, so it can gate CI.
 """
-import fitz, glob, os, sys
+import glob, os, sys
+import pymupdf as fitz  # PyMuPDF
 import numpy as np
 
 DIAG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "diagrams")

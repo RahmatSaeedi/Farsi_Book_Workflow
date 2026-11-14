@@ -1,0 +1,99 @@
+/* theme/epub.css — high-quality RTL Persian styling for the EPUB build.
+ *
+ * Pandoc ships a default EPUB stylesheet that is LTR and serif (Georgia /
+ * Menlo). Quarto loads THIS file after it, so the rules here win and turn the
+ * book into a proper right-to-left, Vazirmatn-set publication. Three jobs:
+ *   1. reference the embedded Vazirmatn faces (see `epub-fonts:` in _quarto.yml
+ *      — pandoc copies the .ttf into the EPUB but only @font-face makes it used);
+ *   2. flow the Persian body right-to-left in Vazirmatn;
+ *   3. isolate the left-to-right "islands" (code, math, English terms, the SVG
+ *      figures) so the Unicode bidi algorithm never reorders them.
+ *
+ * Counterpart of theme/custom.scss (the HTML site) and theme/ltr.lua (which adds
+ * dir="ltr" to .ltr spans/divs for every non-LaTeX format, EPUB included).
+ */
+
+/* ---- embedded fonts (filenames must match epub-fonts: in _quarto.yml) -------
+ * The .ttf land in EPUB/fonts/ and this stylesheet in EPUB/styles/, so the
+ * src url is "../fonts/<file>". */
+@font-face {
+  font-family: "Vazirmatn";
+  font-style: normal;
+  font-weight: 400;
+  src: url("../fonts/Vazirmatn-Regular.ttf");
+}
+@font-face {
+  font-family: "Vazirmatn";
+  font-style: normal;
+  font-weight: 700;
+  src: url("../fonts/Vazirmatn-Bold.ttf");
+}
+
+/* ---- base: Persian body flows right-to-left, set in Vazirmatn ---------------
+ * NOTE: no `direction`/`unicode-bidi` anywhere in this file. The EPUB 3 CSS
+ * profile PROHIBITS both properties in a style sheet (epubcheck CSS-001), and
+ * the spec's remedy is the `dir` attribute on the content instead. Pandoc does
+ * not put dir on <html>, so tools/fix_epub.py adds dir="rtl" there and
+ * dir="ltr" on the LTR islands (code, math) after every render. */
+html, body {
+  text-align: right;
+  font-family: "Vazirmatn", "Segoe UI", Tahoma, sans-serif;
+  line-height: 1.85;
+}
+
+h1, h2, h3, h4, h5, h6,
+p, ul, ol, li, dl, dt, dd, blockquote,
+figcaption, caption, th, td, div {
+  font-family: "Vazirmatn", "Segoe UI", Tahoma, sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  text-align: right;
+  line-height: 1.4;
+}
+
+/* lists hang their markers on the right in RTL text */
+ul, ol { text-align: right; }
+
+/* ---- left-to-right islands -------------------------------------------------
+ * English terms / symbols / numbers wrapped as [..]{.ltr} (ltr.lua gives them
+ * dir="ltr"), plus anything explicitly marked dir="ltr". */
+[dir="ltr"], .ltr {
+  text-align: left;
+}
+
+/* Code is ASCII and must read left-to-right and left-align inside the RTL page. */
+code, kbd, samp, pre,
+.sourceCode, div.sourceCode, pre.sourceCode, code.sourceCode {
+  text-align: left;
+  font-family: "DejaVu Sans Mono", "Consolas", "Liberation Mono", "Courier New", monospace;
+}
+
+/* Wrap long code lines so they never overflow a narrow e-reader column. */
+pre, pre code, code.sourceCode, pre.sourceCode {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Math stays LTR via dir="ltr" (added by tools/fix_epub.py, since `direction`
+ * is prohibited here); Persian \text{...} inside it uses Vazirmatn. */
+math mtext { font-family: "Vazirmatn", "Segoe UI", Tahoma, sans-serif; }
+
+/* ---- figures & tables ------------------------------------------------------ */
+figure, .figure, figcaption,
+.quarto-figure, .quarto-figure-center { text-align: center; }
+figure img, .quarto-figure img, p img {
+  max-width: 100%;
+  height: auto;
+}
+figcaption { font-size: 0.9em; }
+
+/* Tables read right-to-left like the body, inherited from <html dir="rtl">. */
+th, td { text-align: right; }
+
+/* Callouts (Quarto note/important/...) keep RTL text with a clear left border
+ * flipped to the right for an RTL reader. */
+div.callout, .callout {
+  text-align: right;
+}

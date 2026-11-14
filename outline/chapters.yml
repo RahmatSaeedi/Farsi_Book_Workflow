@@ -1,0 +1,39 @@
+# =====================================================================
+#  OUTLINE — the book's structure (optional; see tools/gen_stubs.py).
+#
+#  Edit here, then run:   python tools/gen_stubs.py
+#  It creates a stub .qmd for every entry that has no file yet and rewrites
+#  the chapter list between the marker comments in _quarto.yml.
+#  If you would rather list chapters in _quarto.yml by hand, delete this
+#  folder and the two marker comments, and never run gen_stubs.py.
+#
+#  Chapter fields:
+#    n          chapter number (unique)          -> chapters/NN-slug.qmd
+#    slug       kebab-case ASCII file slug
+#    title_fa   Persian title (reader-facing; used in new stubs)
+#    title_en   English title          (optional, planning only)
+#    pages      rough page estimate    (optional, planning only)
+#    prereqs    chapter numbers        (optional)
+#    objectives planning bullets       (optional, copied into the stub as a comment)
+#
+#  Small book: a flat `chapters:` list, as below.
+#  Large book: group chapters into parts instead:
+#
+#    parts:
+#      - title_fa: "بخش ۱ — مبانی"
+#        chapters:
+#          - {n: 1, slug: vectors, title_fa: "بردارها"}
+#          - {n: 2, slug: fourier, title_fa: "تبدیلِ فوریه", prereqs: [1]}
+#
+#    appendices:
+#      - {id: A, slug: answer-key, title_fa: "کلیدِ پاسخ‌ها"}   -> appendices/A-answer-key.qmd
+# =====================================================================
+
+chapters:
+  - n: 1
+    slug: sample-chapter
+    title_fa: "فصلِ نمونه: نوسانگرِ هماهنگِ میرا"
+    title_en: "Sample chapter: the damped harmonic oscillator"
+    pages: 3
+    objectives:
+      - "Show every authoring convention once: RTL prose, LTR islands, math, code, figure, table, citation"

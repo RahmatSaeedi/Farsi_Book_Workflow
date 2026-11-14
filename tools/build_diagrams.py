@@ -20,7 +20,7 @@ Usage:
 import os, sys, glob, fnmatch, subprocess
 
 try:
-    import fitz  # PyMuPDF
+    import pymupdf as fitz  # PyMuPDF
     import numpy as np
 except ImportError:
     sys.exit("PyMuPDF + numpy required:  pip install pymupdf numpy")
@@ -34,6 +34,16 @@ BORDER = 4.0  # pt margin around the cropped content
 _tex = os.path.join(os.environ.get("APPDATA", ""), "TinyTeX", "bin", "windows")
 if os.path.isdir(_tex):
     os.environ["PATH"] = _tex + os.pathsep + os.environ.get("PATH", "")
+
+# The figures load Vazirmatn by path, but luaotfload still resolves it BY NAME
+# when it embeds the font; if the repo's fonts/ folder is not in its index the
+# PDF dies at the very end with "! error: (file ) (type 2): cannot find file ''"
+# (and an interrupted run leaves an uncropped full-canvas PDF behind).
+# OSFONTDIR puts fonts/ in the index (see docs/BUILD.md).
+_fonts = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fonts")
+if _fonts not in os.environ.get("OSFONTDIR", ""):
+    os.environ["OSFONTDIR"] = _fonts + (os.pathsep + os.environ["OSFONTDIR"]
+                                        if os.environ.get("OSFONTDIR") else "")
 
 
 def build_one(base):

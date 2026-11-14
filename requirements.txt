@@ -1,8 +1,11 @@
-# Build tooling for the Farsi technical-book workflow.
-pymupdf>=1.24        # crops LuaLaTeX figure PDFs to content + emits SVG (tools/build_diagrams.py)
+# Build tooling for the Farsi technical-book workflow (pip install -r requirements.txt).
+PyYAML>=6.0          # outline parsing: tools/gen_stubs.py
+pymupdf>=1.24.3      # crops LuaLaTeX figure PDFs to content + emits SVG (tools/build_diagrams.py),
+                     # cover, Kindle edition
 numpy>=1.24          # pixel-based content bbox in the figure builder + QA
-PyYAML>=6.0          # optional: parse an outline/config to generate chapter stubs
+pypdfium2>=4         # PDFium (Chrome/Edge engine): tools/pdf_to_png.py + the copy/search check in tools/pdf_text_check.py
+Pillow>=10           # image handling: tools/build_kindle_epub.py, verify_epub.py, make_kindle_cover.py
 
-# Add computational / plotting deps your chapters use, e.g.:
+# Add the computational / plotting packages your chapters use, e.g.:
 # scipy>=1.10
 # matplotlib>=3.7

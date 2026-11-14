@@ -1,0 +1,52 @@
+# TeX Live packages the book needs on top of a fresh TinyTeX.
+#
+# One package per line: the tlmgr package name, then a file it provides.
+#   * tlmgr installs the first column        (tools/setup_windows.ps1, CI)
+#   * kpsewhich looks for the second column  (tools/check_env.py), which works
+#     with any TeX distribution, not only TinyTeX.
+# Single source of truth: .github/workflows/build.yml reads this file too.
+#
+# Why each group is needed:
+#   figures (diagrams/*.tex are compiled by plain lualatex, outside Quarto, so
+#   Quarto's auto-install never applies) and the Kindle edition's equations:
+fontspec        fontspec.sty
+babel           babel.sty        # the Persian locale lives inside babel; there is no babel-persian
+luatexbase      luatexbase.sty   # babel's LuaTeX backend; minimal TinyTeX omits it
+ctablestack     ctablestack.sty  # ditto
+luaotfload      luaotfload.sty
+unicode-math    unicode-math.sty
+geometry        geometry.sty
+pgf             tikz.sty
+pgfplots        pgfplots.sty
+xcolor          xcolor.sty
+amsmath         amsmath.sty
+amsfonts        amssymb.sty
+mathtools       mathtools.sty
+#   the book PDF (quarto render; _quarto.yml sets latex-auto-install: false, so
+#   every package must already be here -- the set was taken from index.log):
+fancyvrb        fancyvrb.sty
+fvextra         fvextra.sty
+framed          framed.sty
+pdfpages        pdfpages.sty
+nameref         nameref.sty      # split out of hyperref in TeX Live 2026
+koma-script     scrreprt.cls
+lm              lmodern.sty
+lm-math         latinmodern-math.otf
+bookmark        bookmark.sty
+booktabs        booktabs.sty
+caption         caption.sty
+environ         environ.sty
+eso-pic         eso-pic.sty
+float           float.sty
+fontawesome5    fontawesome5.sty
+intcalc         intcalc.sty
+lineno          lineno.sty
+lualatex-math   lualatex-math.sty
+mdwtools        mdwlist.sty
+microtype       microtype.sty
+pdfcol          pdfcol.sty
+pdflscape       pdflscape.sty
+tcolorbox       tcolorbox.sty
+tikzfill        tikzfill.sty
+trimspaces      trimspaces.sty
+upquote         upquote.sty

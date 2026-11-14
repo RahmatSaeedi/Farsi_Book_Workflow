@@ -1,7 +1,37 @@
-# Quarto build outputs
-/_site/
+# Everything listed here is generated or personal and is rebuilt by the tools;
+# docs/BUILD.md section 7 lists what recreates each entry.
+
+# Quarto build outputs. Never commit these: _book/ is ~400 MB (the Kindle
+# Previewer .kpf alone is ~260 MB, over GitHub's 100 MB per-file limit, so a
+# push containing it is rejected), and CI rebuilds and deploys them anyway.
 /_book/
+/_site/
 /.quarto/
+# left behind only if tools/build_all.py / check_env.py is interrupted mid-probe
+/_book.locktest/
+# a failed PDF render can leave the intermediate LaTeX in the project root
+/index.tex
+# per-document Quarto resource folders (render scratch)
+/chapters/*_files/
+/appendices/*_files/
+/index_files/
+/site_libs/
+
+# Claude Code: personal, machine-specific settings (permission rules,
+# absolute paths), never shared. To share project settings with others later,
+# replace /.claude/ by /.claude/settings.local.json and commit .claude/settings.json.
+/.claude/
+CLAUDE.local.md
+
+# The reference book this workflow was distilled from, if a copy sits here:
+# a separate repository, never part of the template.
+/MRI/
+
+# LaTeX intermediates for the Kindle edition's rasterised math
+/.kindle-build/
+# Portable Java + epubcheck, fetched by `python tools/verify_epub.py --install-tools`
+/.tools/
+
 *.html
 !_extensions/**/*.html
 # theme/*.html are source includes (e.g. mathjax-config.html), not rendered output:
@@ -27,11 +57,15 @@
 *.toc
 *.out
 *.synctex.gz
+*.synctex(busy)
 *.fls
 *.fdb_latexmk
 *.bbl
 *.blg
 *.xdv
+
+# The cover is the exception to the rules below: cover.pdf + cover.png are
+# committed (built rarely by tools/build_cover.py, needed by every format).
 
 # Diagram intermediates (keep sources, ignore compiled artifacts)
 diagrams/**/*.pdf
@@ -55,6 +89,7 @@ venv/
 # OS / editor
 .DS_Store
 Thumbs.db
+desktop.ini
 .vscode/
 .idea/
 

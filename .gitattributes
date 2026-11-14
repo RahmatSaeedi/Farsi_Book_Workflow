@@ -1,0 +1,13 @@
+# Normalize line endings to LF for all text files (keeps Makefile, *.lua, *.qmd
+# working on the Linux CI runner regardless of the OS they were authored on).
+* text=auto eol=lf
+
+# Binary assets (never normalize/diff)
+*.ttf  binary
+*.otf  binary
+*.pdf  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.epub binary
+*.tif  binary

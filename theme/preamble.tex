@@ -2,59 +2,136 @@
 %  LaTeX preamble for a Farsi (RTL) technical book — PDF output via LuaLaTeX.
 %  Injected by Quarto as `include-in-header` for the PDF format.
 %
-%  Bidi strategy: babel + bidi=basic  (NOT xepersian / polyglossia / the
-%  `bidi` package). babel's built-in bidi engine uses the LaTeX kernel's
-%  bidi support, which is robust with modern array/longtable/booktabs.
-%  xepersian breaks on array/longtable; polyglossia demands extra font
-%  families; the standalone `bidi` package mis-orders multi-line content.
+%  Bidi strategy: babel + bidi=basic
+%  ---------------------------------
+%  We make the document right-to-left with `babel`'s built-in bidi engine
+%  (`bidi=basic`), which uses the LaTeX kernel's bidi support. This is more
+%  robust with modern `array`/`longtable`/`booktabs` than the older `bidi`
+%  package (used by polyglossia/xepersian), which patches tabular internals
+%  and breaks on current `array` (missing \UseMathForPositioningText).
 %
 %  * Persian is the main language (RTL); `english` is available for LTR runs.
 %  * \babelsublr{...} forces a left-to-right "island" — see theme/ltr.lua.
 %  * Math ($...$) and verbatim/code stay LTR automatically.
 %  * The body font is set here via \babelfont (loaded by file from fonts/),
-%    so do NOT also set `mainfont` in _quarto.yml for PDF.
+%    so DO NOT also set `mainfont` in _quarto.yml for PDF.
+%
+%  NOTE: anything that loads packages (tikz, pgfplots, …) is fine before or
+%  after babel here; bidi=basic does not impose a "load last" rule.
 % =====================================================================
 
-% --- TikZ / PGF, if you inline any diagrams in the prose (figures are usually
-%     external — see diagrams/). Safe to keep even if unused. ----------------
+% --- TikZ / PGF for inline vector diagrams (also used by diagrams/). --------
 \usepackage{tikz}
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
 \usetikzlibrary{arrows.meta}
 
-% --- Math. mathtools pulls in amsmath and adds \coloneqq, \xmapsto, ... ------
+% --- Math packages the chapters rely on. -----------------------------------
+% mathtools pulls in amsmath and adds \xleftrightarrow, \coloneqq, \xmapsto, …
+% (amsmath/amssymb are already loaded by Quarto; \boldsymbol comes from there.)
+% NOTE: do NOT add siunitx/bm here — they remap \mu and break \boldsymbol\mu.
 \usepackage{mathtools}
 
 % --- RTL / Persian via babel (bidi=basic) -----------------------------------
 \usepackage[bidi=basic]{babel}
 \babelprovide[import]{english}
 \babelprovide[main, import]{persian}
-% Body font (Vazirmatn) loaded BY FILE — no system font install needed.
-% Set BOTH roman and sans: KOMA/most classes render titles+headings in the
-% sans family, so the sans face must also cover Persian (else title = tofu).
-% Renderer=Node forces luaotfload's stable node shaper instead of HarfBuzz
-% (LuaHBTeX's default HarfBuzz has an assertion bug on some Persian glyph
-% sequences; the node renderer shapes connected Persian correctly).
-\babelfont{rm}[Renderer=Node, Path=fonts/, Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold]{Vazirmatn}
-\babelfont{sf}[Renderer=Node, Path=fonts/, Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold]{Vazirmatn}
+% babel's Persian locale spells the figure label with the ARABIC kaf (U+0643,
+% "شكل"); readers type the Persian kaf (U+06A9), so a search for "شکل" found
+% no caption. Same glyph on paper, the right letter in the text.
+\setlocalecaption{persian}{figure}{شکل}
 
-% --- Monospace (code) font WITH a Persian-glyph fallback, so Persian text
-%     inside code blocks still renders. Latin Modern Mono keeps code
-%     monospaced; any glyph it lacks falls back to Vazirmatn. ----------------
+% --- Copy/paste-able Persian text (see theme/pdf-copytext.lua) ------------------
+% Plain LuaLaTeX output copies Persian text REVERSED in PDFium/Acrobat-based
+% viewers and as legacy "presentation form" code points instead of real letters.
+% The Lua module (a) rewrites the fonts' ToUnicode maps to the typed letters and
+% (b) re-emits every RTL line in visual order at shipout. Must be loaded BEFORE
+% the \babelfont lines so its font hook sees the fonts being loaded. Rendering is
+% pixel-identical; only what a viewer reads back changes.
+\directlua{dofile("theme/pdf-copytext.lua")}
+
+% Body font (Vazirmatn) loaded by file — no system font install needed.
+% Set BOTH roman and sans to Vazirmatn: KOMA renders the title and headings
+% in the sans family, so the sans face must also cover Persian glyphs
+% (otherwise the title/headings show as empty boxes / tofu).
+% Renderer=Node forces luaotfload's stable node shaper instead of HarfBuzz.
+% (LuaHBTeX defaults to HarfBuzz, which has an assertion bug on some Persian
+% glyph sequences in the content; the node renderer shapes Persian correctly.)
+% invisible=8204: luaotfload normally replaces ZWNJ (U+200C) — which Persian uses
+% in every "می‌شود" — by a space glyph + negative kern, so copied text lost it.
+% 8204 (=U+200C) makes it keep the font's own zero-width ZWNJ glyph instead;
+% Vazirmatn has one, so the copied text keeps the ZWNJ. Same layout either way.
+\babelfont{rm}[Renderer=Node, RawFeature={invisible=8204}, Path=fonts/, Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold]{Vazirmatn}
+\babelfont{sf}[Renderer=Node, RawFeature={invisible=8204}, Path=fonts/, Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold]{Vazirmatn}
+
+% Pandoc's LaTeX template makes U+200C active and expands it to
+% \zerowidthnonjoiner = \discretionary{-}{}{\kern.03em}: the join is broken by
+% a tiny kern and NO ZWNJ glyph ever reaches the font, so the copied text lost
+% every ZWNJ regardless of the font feature above. Same macro, but the unbroken
+% branch also typesets the (zero-width) U+200C glyph: identical layout and
+% line-break behaviour, and the copied text keeps "می‌شود". Bookmarks still drop
+% it (\texorpdfstring), as before. Overrides the template's \def (this file is
+% included after it).
+\makeatletter
+\def\zerowidthnonjoiner{%
+  \texorpdfstring{%
+    \TextOrMath{\nobreak\discretionary{-}{}{\char"200C\kern.03em}%
+      \ifvmode\else\nobreak\hskip\z@skip\fi}{}%
+  }{}%
+}
+\makeatother
+
+% Monospace (code) font WITH a Persian-glyph fallback, so Persian text inside
+% code blocks renders in the PDF. Latin Modern Mono keeps code monospaced; any
+% glyph it lacks (Arabic-script/Persian) falls back to Vazirmatn (loaded by file).
 \directlua{luaotfload.add_fallback("monofallback", {"[fonts/Vazirmatn-Regular.ttf]:mode=node;script=arab;"})}
 \babelfont{tt}[Renderer=Node, RawFeature={fallback=monofallback}]{Latin Modern Mono}
 
-% --- Wrap long code lines in the PDF. Quarto loads plain fancyvrb (no
-%     breaklines key), so we load fvextra and enable wrapping globally. ------
+% Wrap long code lines in the PDF. Quarto loads plain fancyvrb (no `breaklines`
+% key), so we load fvextra ourselves (it provides breaklines/breakanywhere) and
+% enable it globally; Quarto's Highlighting/Verbatim then wraps instead of
+% overflowing the text width. breakanywhere allows breaking long unbroken tokens.
 \usepackage{fvextra}
 \fvset{breaklines=true, breakanywhere=true}
 
-% --- (Optional) RTL ToC number-column widths. Multi-part section numbers
-%     (e.g. "12.10") can collide with the heading text; reserve wider columns.
-%     Uncomment / tune if your numbering grows wide (needs a KOMA class).
-% \DeclareTOCStyleEntry[numwidth=2.8em]{tocline}{chapter}
-% \DeclareTOCStyleEntry[numwidth=3.6em]{tocline}{section}
+% Graphical front cover as PAGE 1. \AtBeginDocument injects it BEFORE \maketitle
+% (Quarto's include-before-body runs AFTER the title page, which would make the
+% cover page 2). fitpaper sizes that page to the cover; path is relative to the
+% project root (Quarto's working dir during render).
+% Skipped when cover/cover.pdf does not exist (build it from cover/cover.tex with
+% `python tools/build_cover.py`, or drop in your own one-page PDF).
+\usepackage{pdfpages}
+\IfFileExists{cover/cover.pdf}{%
+  \AtBeginDocument{\includepdf[fitpaper=true]{cover/cover.pdf}}%
+}{}
 
-% --- (Optional) graphical front cover as page 1:
-% \usepackage{pdfpages}
-% \AtBeginDocument{\includepdf[fitpaper=true]{cover/cover.pdf}}
+% --- Table of contents: number column width (RTL) ----------------------------
+% In the RTL ToC, multi-part section numbers (e.g. "78.10") are wider than the
+% default reserved slot and collide with the Persian heading text. Reserve a
+% wider, per-level number column via KOMA's tocbasic so the number and title
+% never overlap. (Tune the widths if your numbering grows wider than NN.NN.)
+% ToC display depth (chapter+section only) is controlled by `toc-depth` in
+% _quarto.yml, which Quarto emits as \setcounter{tocdepth}{..} after this file.
+\DeclareTOCStyleEntry[numwidth=2.8em]{tocline}{chapter}
+\DeclareTOCStyleEntry[numwidth=3.6em]{tocline}{section}
+\DeclareTOCStyleEntry[numwidth=4.4em]{tocline}{subsection}
+
+% --- Code blocks render LEFT-TO-RIGHT (English code). -----------------------
+% Handled in theme/ltr.lua: each code block is wrapped from the OUTSIDE in the
+% LTR `english` language (\begin{otherlanguage}{english} ... around the whole
+% `Shaded` box), which both fixes reading order and left-aligns the block,
+% without disturbing the framed/verbatim internals. Inline `code` is wrapped
+% in \babelsublr there as well.
+
+% --- Page numbers are always set left-to-right. -----------------------------
+% When a page breaks INSIDE a code block, the output routine runs while the
+% language is `english`: babel then adds no direction nodes to the footer, the
+% footer box is still right-to-left, and the digits come out mirrored ("321"
+% on page 123; one page in eleven of the book). An explicit TLT box makes the
+% number independent of whatever language the page happened to break in.
+\renewcommand*{\pagemark}{{\usekomafont{pagenumber}\hbox dir TLT{\thepage}}}
+
+% --- Mathematics stays left-to-right automatically inside math mode. --------
+% unicode-math is optional; enable only if a specific math font is required.
+% \usepackage{unicode-math}
+% \setmathfont{Latin Modern Math}

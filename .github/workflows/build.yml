@@ -1,6 +1,8 @@
 name: build-and-deploy
 
-# Renders the book (HTML + PDF) and deploys the website to GitHub Pages.
+# Renders the book (HTML + PDF + EPUB + Kindle EPUB), validates the EPUBs and
+# deploys the website to GitHub Pages. This is the Linux version of the recipe
+# in docs/BUILD.md (locally: python tools/build_all.py).
 # The validated toolchain: Quarto + TinyTeX (LuaLaTeX + babel bidi=basic).
 # Vazirmatn fonts are committed under fonts/ and loaded by file, so no system
 # font install is needed. Diagrams are built from TikZ to PDF + SVG by
@@ -24,7 +26,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Quarto
         uses: quarto-dev/quarto-actions/setup@v2
@@ -51,9 +53,9 @@ jobs:
           echo "$BIN_DIR" >> "$GITHUB_PATH"
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
-          python-version: '3.12'
+          python-version: '3.14'
 
       - name: Install Python deps (PyMuPDF crops figures to SVG/PDF)
         run: pip install -r requirements.txt
@@ -77,13 +79,17 @@ jobs:
       # and gives up before a minimal TinyTeX catches up (that was the render failure).
       # The full set was derived from a local render's index.log. No `|| true`, so a
       # genuine failure surfaces instead of being masked. tlmgr also pulls any deps.
+      # The list itself lives in tools/tex-packages.txt (first column), shared
+      # with tools/setup_windows.ps1 and tools/check_env.py so a new computer and
+      # CI install exactly the same set.
+      # `tlmgr update --self` first: quarto-actions installs a prebuilt TinyTeX
+      # bundle, and once the TeX Live repository has moved on, tlmgr refuses
+      # every install ("tlmgr itself needs to be updated", exit 255) until the
+      # package manager itself is updated. Same order as tools/setup_windows.ps1.
       - name: Install LaTeX packages
         run: |
-          tlmgr install \
-            fontspec babel luatexbase ctablestack luaotfload unicode-math geometry pgf pgfplots \
-            xcolor amsmath amsfonts mathtools fancyvrb fvextra framed pdfpages koma-script lm lm-math \
-            bookmark booktabs caption environ eso-pic float fontawesome5 intcalc lineno lualatex-math \
-            mdwtools microtype pdfcol pdflscape tcolorbox tikzfill trimspaces upquote
+          tlmgr update --self
+          tlmgr install $(grep -v '^\s*#' tools/tex-packages.txt | awk 'NF {print $1}')
 
       # The book loads several fonts BY NAME (Latin Modern Mono/Math, FontAwesome5)
       # plus a luaotfload fallback for Persian-in-code. On a fresh CI TinyTeX the
@@ -116,13 +122,13 @@ jobs:
       # Compile ONE real figure as a canary. A hardcoded kpsewhich list gives false
       # confidence (it once passed while luatexbase.sty was missing); a real compile
       # with the figures' exact preamble + fonts surfaces ANY missing dependency here
-      # in ~5s, instead of after grinding through all 228 figures.
+      # in ~5s, instead of after grinding through every figure.
       - name: Verify the figure toolchain (compile one real figure)
         run: |
           lualatex --version | head -1
-          python -c "import fitz, numpy; print('PyMuPDF + numpy OK')"
+          python -c "import pymupdf, numpy; print('PyMuPDF + numpy OK')"
           cd diagrams
-          canary=sample-figure
+          canary=sample-figure   # any figure of yours will do
           if ! lualatex -interaction=nonstopmode -halt-on-error "$canary.tex" >_canary.log 2>&1; then
             echo "--- canary figure '$canary' failed to compile ---"
             tail -n 30 _canary.log
@@ -135,7 +141,23 @@ jobs:
       - name: Build vector diagrams (LuaLaTeX -> PyMuPDF -> PDF + SVG)
         run: make -C diagrams PYTHON="$(which python)"
 
-      - name: Render book (HTML + PDF)
+      # "ok" from the builder only means a PDF exists; this flags figures that
+      # came out blank or uncropped.
+      - name: Check the built figures
+        run: python tools/check_diagrams.py
+
+      # If the book uses outline/chapters.yml, the chapter list in _quarto.yml
+      # must match it (someone edited the outline and forgot tools/gen_stubs.py).
+      - name: Check the chapter list against the outline
+        run: if [ -f outline/chapters.yml ]; then python tools/gen_stubs.py --check; fi
+
+      # `quarto render` (no --to) builds every configured format: HTML + PDF +
+      # EPUB. EPUB is pandoc-only (no LaTeX): RTL via theme/epub.css +
+      # page-progression-direction, MathML math, Vazirmatn embedded, and the SVG
+      # figures built above. It needs no extra tlmgr packages. The resulting
+      # .epub lands in _book/ and is uploaded with the site, so Quarto's book
+      # navbar exposes it as a download.
+      - name: Render book (HTML + PDF + EPUB)
         run: |
           if ! quarto render; then
             echo "::group::index.log (LaTeX error context)"
@@ -150,8 +172,45 @@ jobs:
             exit 1
           fi
 
+      # Fail loudly if the EPUB silently went missing (e.g. format dropped from
+      # _quarto.yml): it must ship with the site, not just HTML + PDF.
+      - name: Verify the EPUB was produced
+        run: |
+          epub="$(find _book -maxdepth 1 -name '*.epub' | head -n1)"
+          if [ -z "$epub" ]; then echo "::error:: no .epub in _book/"; ls -la _book; exit 1; fi
+          echo "EPUB OK: $epub ($(du -h "$epub" | cut -f1))"
+
+      # The Kindle edition. Amazon's converter does not cope with a math-heavy
+      # book's MathML or with more than 25 SVGs, so tools/build_kindle_epub.py
+      # derives a second EPUB with the math as Unicode text + PNG and the figures
+      # as PNG. It reuses the LaTeX toolchain and PyMuPDF already installed above,
+      # and lands in _book/ so the site offers it alongside the other formats.
+      - name: Build the Kindle EPUB
+        run: python tools/build_kindle_epub.py
+
+      # Validate the containers the way Apple Books' and KDP's ingestion do.
+      # `quarto render` has already run tools/fix_epub.py (project post-render),
+      # which repairs what Pandoc's EPUB writer leaves behind; epubcheck is the
+      # independent proof. Both books pass with 0 errors and 0 warnings,
+      # so this is a real gate, not advisory — a store-rejecting defect should stop
+      # the pipeline. The full report goes to the job summary either way.
+      - name: Validate the EPUBs (epubcheck)
+        run: |
+          set -euo pipefail
+          # Same script developers run locally (it fetches epubcheck into .tools/
+          # and copies each book to an ASCII name first — the JVM cannot open the
+          # Persian file name). Kindle Previewer is Windows-only, so CI gets the
+          # epubcheck half; run the full thing locally before uploading to KDP.
+          {
+            echo '### epubcheck'
+            echo '```'
+            python tools/verify_epub.py --epubcheck-only 2>&1 | tee report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          grep -q "all checks passed" report.txt
+
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: _book
 
@@ -164,4 +223,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
